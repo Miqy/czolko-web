@@ -37,7 +37,7 @@
         letter-spacing: 1px; text-shadow: 0 6px 0 rgba(0, 0, 0, .18); animation: wiggle 3.2s ease-in-out infinite; }
 
       /* Talia kart kategorii: górna karta odlatuje jak w grze (w dół = trafione, w górę = pominięte). */
-      #stage { position: relative; width: calc(var(--card-w) * 2.2); height: calc(var(--card-w) * 1.42); }
+      #stage { position: relative; width: calc(var(--card-w) * 2.2); height: calc(var(--card-w) * 1.42); margin-top: calc(var(--card-w) * 0.18); }
       .card { position: absolute; left: 50%; top: 50%; width: var(--card-w); height: calc(var(--card-w) * 1.3);
         margin: calc(var(--card-w) * -0.65) 0 0 calc(var(--card-w) * -0.5); border-radius: calc(var(--card-w) * 0.16);
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6%;
@@ -53,7 +53,8 @@
       .card.fly-up { transition: transform .42s cubic-bezier(.5, 0, .9, .6), opacity .42s ease; opacity: 0; }
 
       #side { display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2.4vh, 20px); }
-      #pop { position: absolute; z-index: 20; left: 50%; top: 4%; transform: translate(-50%, 0) scale(.6); opacity: 0;
+      #pop { position: absolute; z-index: 20; left: 50%; top: -20%; transform: translate(-50%, 0) scale(.6); opacity: 0;
+        text-shadow: 0 3px 0 rgba(0, 0, 0, .35), 0 0 18px rgba(0, 0, 0, .35);
         font-size: calc(var(--card-w) * 0.2); white-space: nowrap; pointer-events: none; }
       #pop.show { animation: pop .8s ease-out forwards; }
       #pop.good { color: #7CE29A; }
