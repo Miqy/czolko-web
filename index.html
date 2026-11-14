@@ -1,133 +1,205 @@
 <!DOCTYPE html>
-<html lang="en-us">
+<html lang="pl">
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity Web Player | Czółko</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#20243A">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Czółko – imprezowa gra w zgadywanie haseł. Przyłóż telefon do czoła, a znajomi tłumaczą!">
+    <title>Czółko</title>
+    <link rel="icon" type="image/png" href="TemplateData/favicon.png">
+    <link rel="apple-touch-icon" href="TemplateData/icon-192.png">
+    <link rel="preload" href="TemplateData/Nunito-Black.ttf" as="font" type="font/ttf" crossorigin>
+    <style>
+      @font-face { font-family: "Nunito"; font-weight: 900; font-display: swap; src: url("TemplateData/Nunito-Black.ttf") format("truetype"); }
+      :root {
+        --bg: #20243A; --ink: #FFFFFF; --soft: #AAB0CD; --yellow: #FFC43D; --track: rgba(255, 255, 255, .09);
+        --green: #2EAA60; --red: #FF7060;
+        --card-w: clamp(96px, min(26vw, 22vh), 170px);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; touch-action: none;
+        font-family: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-weight: 900;
+        -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+      #unity-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block;
+        background: var(--bg); outline: none; }
+
+      /* ---------- Ekran ładowania ---------- */
+      #loader { position: fixed; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: clamp(10px, 3vh, 26px); padding: 16px;
+        background: radial-gradient(ellipse at 50% 40%, #2E3458 0%, var(--bg) 62%);
+        transition: opacity .5s ease, transform .5s ease; }
+      #loader.done { opacity: 0; transform: scale(1.06); pointer-events: none; }
+
+      #title { margin: 0; font-size: clamp(44px, min(14vw, 13vh), 104px); line-height: 1; color: var(--yellow);
+        letter-spacing: 1px; text-shadow: 0 6px 0 rgba(0, 0, 0, .18); animation: wiggle 3.2s ease-in-out infinite; }
+
+      /* Talia kart kategorii: górna karta odlatuje jak w grze (w dół = trafione, w górę = pominięte). */
+      #stage { position: relative; width: calc(var(--card-w) * 2.2); height: calc(var(--card-w) * 1.42); }
+      .card { position: absolute; left: 50%; top: 50%; width: var(--card-w); height: calc(var(--card-w) * 1.3);
+        margin: calc(var(--card-w) * -0.65) 0 0 calc(var(--card-w) * -0.5); border-radius: calc(var(--card-w) * 0.16);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6%;
+        box-shadow: 0 10px 0 rgba(0, 0, 0, .16), 0 18px 40px rgba(0, 0, 0, .28);
+        transition: transform .45s cubic-bezier(.3, 1.4, .5, 1), opacity .45s ease; will-change: transform; }
+      .card .bubble { width: 62%; aspect-ratio: 1; border-radius: 50%; background: rgba(255, 255, 255, .22);
+        display: flex; align-items: center; justify-content: center; }
+      .card img { width: 82%; height: 82%; object-fit: contain; }
+      .card span { color: #fff; font-size: calc(var(--card-w) * 0.12); text-align: center; line-height: 1.1;
+        padding: 0 6%; text-shadow: 0 2px 0 rgba(0, 0, 0, .12); }
+      .card.dark span { color: #20243A; text-shadow: none; }
+      .card.fly-down { transition: transform .42s cubic-bezier(.5, 0, .9, .6), opacity .42s ease; opacity: 0; }
+      .card.fly-up { transition: transform .42s cubic-bezier(.5, 0, .9, .6), opacity .42s ease; opacity: 0; }
+
+      #side { display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2.4vh, 20px); }
+      #pop { position: absolute; z-index: 20; left: 50%; top: 4%; transform: translate(-50%, 0) scale(.6); opacity: 0;
+        font-size: calc(var(--card-w) * 0.2); white-space: nowrap; pointer-events: none; }
+      #pop.show { animation: pop .8s ease-out forwards; }
+      #pop.good { color: #7CE29A; }
+      #pop.skip { color: var(--red); }
+
+      #progress { width: min(72vw, 340px); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+      #bar { width: 100%; height: 14px; border-radius: 99px; background: var(--track); overflow: hidden; }
+      #fill { position: relative; height: 100%; width: 3%; border-radius: 99px; background: var(--yellow);
+        transition: width .25s ease; overflow: hidden; }
+      #fill::after { content: ""; position: absolute; inset: 0;
+        background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, .55) 50%, transparent 80%);
+        transform: translateX(-100%); animation: shine 1.4s ease-in-out infinite; }
+      #pct { font-size: 15px; color: var(--soft); letter-spacing: .5px; font-variant-numeric: tabular-nums; }
+      #hint { min-height: 1.3em; font-size: clamp(14px, 2.4vh, 18px); color: var(--soft); text-align: center;
+        max-width: 90vw; transition: opacity .3s ease; }
+      #hint.fade { opacity: 0; }
+      #hint.error { color: #FF9A8C; }
+
+      @keyframes wiggle { 0%, 100% { transform: rotate(-2deg) } 50% { transform: rotate(2deg) translateY(-4px) } }
+      @keyframes shine { to { transform: translateX(100%) } }
+      @keyframes pop { 0% { opacity: 0; transform: translate(-50%, 10px) scale(.6) }
+        25% { opacity: 1; transform: translate(-50%, 0) scale(1.1) }
+        100% { opacity: 0; transform: translate(-50%, -26px) scale(1) } }
+
+      /* Telefon w poziomie (mało wysokości): talia obok paska. */
+      @media (max-height: 480px) and (orientation: landscape) {
+        #loader { flex-direction: row; flex-wrap: wrap; align-content: center; column-gap: 6vw; }
+        #title { width: 100%; text-align: center; }
+        #side { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #title, #fill::after { animation: none; }
+        .card { transition: opacity .3s ease; }
+      }
+    </style>
   </head>
   <body>
-    <div id="unity-container" class="unity-desktop">
-      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="loader">
+      <h1 id="title">Czółko</h1>
+      <div id="stage"><div id="pop"></div></div>
+      <div id="side">
+        <div id="progress">
+          <div id="bar"><div id="fill"></div></div>
+          <div id="pct">0%</div>
         </div>
-      </div>
-      <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-logo-title-footer"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">Czółko</div>
+        <div id="hint">Tasuję hasła…</div>
       </div>
     </div>
+    <script src="Build/WebGL.loader.js"></script>
     <script>
-      var canvas = document.querySelector("#unity-canvas");
+      (function () {
+        var stage = document.getElementById("stage");
+        var pop = document.getElementById("pop");
+        var fill = document.getElementById("fill");
+        var pct = document.getElementById("pct");
+        var hint = document.getElementById("hint");
+        var loader = document.getElementById("loader");
+        var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-      // Shows a temporary message banner/ribbon for a few seconds, or
-      // a permanent error message on top of the canvas if type=='error'.
-      // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
-      function unityShowBanner(msg, type) {
-        var warningBanner = document.querySelector("#unity-warning");
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        // Kategorie i kolory kart jak w menu gry.
+        var deck = [
+          ["Zwierzeta", "Zwierzęta", "#4C8DF6"], ["Jedzenie", "Jedzenie", "#8C6CF5"],
+          ["Filmy", "Filmy i seriale", "#20B2A0"], ["Celebryci", "Celebryci", "#FFC43D", true],
+          ["Czynnosci", "Czynności", "#FF7060"], ["NucPolskie", "Polskie piosenki", "#FFC43D", true],
+          ["Sport", "Sport", "#20B2A0"], ["Miejsca", "Dookoła świata", "#4C8DF6"],
+          ["Bajki", "Bajki", "#FF7060"], ["Muzyka", "Muzyka", "#8C6CF5"]
+        ];
+        var hints = [
+          "Tasuję hasła…", "Przyłóż telefon do czoła, ekranem do znajomych",
+          "Przechyl w dół – trafione!", "Przechyl w górę – pomiń", "Znajomi tłumaczą, ty zgadujesz",
+          "Ponad 20 kategorii i nucenie piosenek"
+        ];
+
+        function makeCard(i) {
+          var d = deck[i % deck.length];
+          var el = document.createElement("div");
+          el.className = "card" + (d[3] ? " dark" : "");
+          el.style.background = d[2];
+          el.innerHTML = '<div class="bubble"><img alt="" src="TemplateData/ikony/' + d[0] + '.png"></div><span>' + d[1] + "</span>";
+          return el;
         }
-        var div = document.createElement('div');
-        div.innerHTML = msg;
-        warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
-        else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
-          setTimeout(function() {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
+
+        // Trzy karty w talii: górna prosto, pod nią dwie lekko obrócone.
+        var slots = ["translate(0,0) rotate(0deg)", "translate(-14%,4%) rotate(-8deg) scale(.94)", "translate(14%,6%) rotate(8deg) scale(.9)"];
+        var cards = [], next = 0;
+        function place() {
+          cards.forEach(function (c, k) { c.style.transform = slots[k]; c.style.zIndex = 10 - k; });
         }
-        updateBannerVisibility();
-      }
+        for (var k = 0; k < 3; k++) { var c = makeCard(next++); cards.push(c); stage.insertBefore(c, pop); }
+        place();
 
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/WebGL.loader.js";
-      var config = {
-        arguments: [],
-        dataUrl: buildUrl + "/WebGL.data.unityweb",
-        frameworkUrl: buildUrl + "/WebGL.framework.js.unityweb",
-        codeUrl: buildUrl + "/WebGL.wasm.unityweb",
-        streamingAssetsUrl: "StreamingAssets",
-        companyName: "miqydev",
-        productName: "Czółko",
-        productVersion: "1.1.1",
-        showBanner: unityShowBanner,
-        // errorHandler: function(err, url, line) {
-        //    alert("error " + err + " occurred at line " + line);
-        //    // Return 'true' if you handled this error and don't want Unity
-        //    // to process it further, 'false' otherwise.
-        //    return true;
-        // },
-      };
+        var round = 0;
+        function flick() {
+          if (loader.classList.contains("done")) return;
+          var top = cards.shift();
+          var good = (round++ % 4) !== 2; // co czwarta pominięta
+          top.classList.add(good ? "fly-down" : "fly-up");
+          top.style.transform = good ? "translate(0,85%) rotate(10deg) scale(.9)" : "translate(0,-85%) rotate(-10deg) scale(.9)";
+          setTimeout(function () { top.remove(); }, 460);
+          pop.textContent = good ? "Trafione!" : "Pomiń";
+          pop.className = good ? "good" : "skip";
+          void pop.offsetWidth; pop.classList.add("show");
+          var fresh = makeCard(next++);
+          fresh.style.opacity = "0";
+          fresh.style.transform = "translate(14%,10%) rotate(14deg) scale(.8)";
+          stage.insertBefore(fresh, stage.firstChild);
+          cards.push(fresh);
+          requestAnimationFrame(function () { requestAnimationFrame(function () { fresh.style.opacity = "1"; place(); }); });
+        }
+        var flickTimer = reduced ? null : setInterval(flick, 1150);
 
-      // By default, Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
+        var h = 0;
+        var hintTimer = setInterval(function () {
+          if (hint.classList.contains("error")) return;
+          hint.classList.add("fade");
+          setTimeout(function () { h = (h + 1) % hints.length; hint.textContent = hints[h]; hint.classList.remove("fade"); }, 300);
+        }, 2600);
 
-      // If you would like all file writes inside Unity Application.persistentDataPath
-      // directory to automatically persist so that the contents are remembered when
-      // the user revisits the site the next time, uncomment the following line:
-      // config.autoSyncPersistentDataPath = true;
-      // This autosyncing is currently not the default behavior to avoid regressing
-      // existing user projects that might rely on the earlier manual
-      // JS_FileSystem_Sync() behavior, but in future Unity version, this will be
-      // expected to change.
-
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
-
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        document.querySelector("#unity-container").className = "unity-mobile";
-        canvas.className = "unity-mobile";
-
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
-
-
-      } else {
-        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
-        canvas.style.width = "960px";
-        canvas.style.height = "600px";
-      }
-
-      document.querySelector("#unity-loading-bar").style.display = "block";
-
-      var script = document.createElement("script");
-      script.src = loaderUrl;
-      script.onload = () => {
-        createUnityInstance(canvas, config, (progress) => {
-          document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
-              }).then((unityInstance) => {
-                document.querySelector("#unity-loading-bar").style.display = "none";
-                document.querySelector("#unity-fullscreen-button").onclick = () => {
-                  unityInstance.SetFullscreen(1);
-                };
-
-              }).catch((message) => {
-                alert(message);
-              });
-            };
-
-      document.body.appendChild(script);
-
+        var canvas = document.getElementById("unity-canvas");
+        createUnityInstance(canvas, {
+          arguments: [],
+          dataUrl: "Build/WebGL.data.unityweb",
+          frameworkUrl: "Build/WebGL.framework.js.unityweb",
+          codeUrl: "Build/WebGL.wasm.unityweb",
+          streamingAssetsUrl: "StreamingAssets",
+          companyName: "miqydev",
+          productName: "Czółko",
+          productVersion: "1.1.1",
+        }, function (progress) {
+          var p = Math.max(3, Math.round(progress * 100));
+          fill.style.width = p + "%";
+          pct.textContent = (p >= 100 ? "Prawie gotowe…" : p + "%");
+        }).then(function () {
+          fill.style.width = "100%";
+          pct.textContent = "Gotowe!";
+          clearInterval(flickTimer); clearInterval(hintTimer);
+          loader.classList.add("done");
+          setTimeout(function () { loader.remove(); canvas.focus(); }, 550);
+        }).catch(function (message) {
+          clearInterval(flickTimer);
+          hint.classList.remove("fade");
+          hint.classList.add("error");
+          hint.textContent = "Nie udało się uruchomić gry. Odśwież stronę. (" + message + ")";
+        });
+      })();
     </script>
   </body>
 </html>
